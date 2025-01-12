@@ -1,0 +1,281 @@
+﻿using Api.Model.User;
+using Application.Helpers;
+using Application.Services;
+using Application.User.Commands;
+using Application.User.Queries.FindAll;
+using Application.User.Queries.FindById;
+using Application.UserLogApplication.Queries.FindAll;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using System.Net;
+
+namespace Api.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class UserController : ControllerBase
+    {
+        private readonly IMediator _mediator;
+        private readonly IUriService _uriService;
+        public UserController(IMediator mediator, IUriService uriService)
+        {
+            _mediator = mediator;
+            _uriService = uriService;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Get([FromQuery] ApiQuery apiQuery)
+        {
+            var model = await _mediator.Send(new FindAllUsersQuery
+            {
+                Query = apiQuery.Query,
+            });
+
+            if (apiQuery.Query == null)
+                return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                {
+                    Data = model.Result,
+                });
+
+            var route = Request.Path.Value;
+            var pagedReponse = PaginationHelper.CreatePagedResponse(model.Result, model.PageNumber, model.PageSize, model.ResultCount, _uriService, route, null);
+
+            return StatusCode((int)HttpStatusCode.OK, pagedReponse);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> Get(int id)
+        {
+            var model = await _mediator.Send(new FindUserByIdQuery { Id = id });
+            return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+            {
+                Data = model,
+            });
+        }
+
+        [HttpGet("GetCurrentUser")]
+        public async Task<IActionResult> GetCurrentUser()
+        {
+            var currentUserId = (int)HttpContext.Items["UserId"];
+
+            return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+            {
+                Data = currentUserId,
+            });
+        }
+
+        [HttpGet("GetUserLog/{id}")]
+        public async Task<IActionResult> GetUserLog(int? id, [FromQuery] ApiQuery apiQuery)
+        {
+            var model = await _mediator.Send(new FindAllUserLogQuery
+            {
+                UserId = id,
+                Query = apiQuery.Query,
+            });
+
+            if (apiQuery.Query == null)
+                return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                {
+                    Data = model.Result,
+                });
+
+            var route = Request.Path.Value;
+            var pagedReponse = PaginationHelper.CreatePagedResponse(model.Result, model.PageNumber, model.PageSize, model.ResultCount, _uriService, route, null);
+
+            return StatusCode((int)HttpStatusCode.OK, pagedReponse);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Post([FromBody] UserCreateModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var result = await _mediator.Send(new UserCreate.Command
+                {
+                    UserName = model.UserName,
+                    Password = model.Password,
+                    IsActive = model.IsActive,
+                    AccountId = model.AccountId
+                });
+
+                if (!result.Success)
+                {
+                    return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                    {
+                        Errors = new string[] { (result.Exception != null ? result.Exception.Message : result.ErrorMessage) },
+                    });
+                }
+                else
+                {
+                    return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                    {
+                        Data = result.Result.UserId,
+                    });
+                }
+            }
+            else
+            {
+                return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                {
+                    Errors = ModelState.GetModelErrors(),
+                });
+            }
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Put(int id, [FromBody] UserEditModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var result = await _mediator.Send(new UserUpdate.Command
+                {
+                    UserId = id,
+                    UserName = model.UserName,
+                    AccountId = model.AccountId,
+                    IsActive = model.IsActive,
+                });
+
+                if (!result.Success)
+                {
+                    return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                    {
+                        Errors = new string[] { (result.Exception != null ? result.Exception.Message : result.ErrorMessage) },
+                    });
+                }
+                else
+                {
+                    return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                    {
+                        Data = result.Result.UserId,
+                    });
+                }
+            }
+            else
+            {
+                return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                {
+                    Errors = ModelState.GetModelErrors(),
+                });
+            }
+        }
+
+        [HttpPut("ChangePassword/{id}")]
+        public async Task<IActionResult> ChangePassword(int id, [FromBody] UserEditPasswordModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var result = await _mediator.Send(new UserUpdatePassword.Command
+                {
+                    UserId = id,
+                    OldPassword = model.OldPassword,
+                    Password = model.Password
+                });
+
+                if (!result.Success)
+                {
+                    return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                    {
+                        Errors = new string[] { (result.Exception != null ? result.Exception.Message : result.ErrorMessage) },
+                    });
+                }
+                else
+                {
+                    return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                    {
+                        Data = result.Result.UserId,
+                    });
+                }
+            }
+            else
+            {
+                return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                {
+                    Errors = ModelState.GetModelErrors(),
+                });
+            }
+        }
+
+        [HttpPut("ChangePasswordByAdmin/{id}")]
+        public async Task<IActionResult> ChangePasswordByAdmin(int id, [FromBody] UserEditPasswordByAdminModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var result = await _mediator.Send(new UserUpdatePasswordByAdmin.Command
+                {
+                    UserId = id,
+                    Password = model.Password
+                });
+
+                if (!result.Success)
+                {
+                    return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                    {
+                        Errors = new string[] { (result.Exception != null ? result.Exception.Message : result.ErrorMessage) },
+                    });
+                }
+                else
+                {
+                    return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                    {
+                        Data = result.Result.UserId,
+                    });
+                }
+            }
+            else
+            {
+                return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                {
+                    Errors = ModelState.GetModelErrors(),
+                });
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var result = await _mediator.Send(new UserDelete.Command
+            {
+                Id = id
+            }); ;
+
+            if (!result.Success)
+            {
+                return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                {
+                    Errors = new string[] { (result.Exception != null ? result.Exception.Message : result.ErrorMessage) },
+                });
+            }
+            else
+            {
+                return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                {
+                    Data = result.Result.UserId,
+                });
+            }
+        }
+
+        [HttpDelete]
+        public async Task<IActionResult> Delete(int[] ids)
+        {
+            var result = await _mediator.Send(new UserDeleteAll.Command
+            {
+                Ids = ids
+            }); ;
+
+            if (!result.Success)
+            {
+                return StatusCode((int)HttpStatusCode.BadRequest, new ApiResponse
+                {
+                    Errors = new string[] { (result.Exception != null ? result.Exception.Message : result.ErrorMessage) },
+                });
+            }
+            else
+            {
+                return StatusCode((int)HttpStatusCode.OK, new ApiResponse
+                {
+                    Data = result.Result.Result,
+                });
+            }
+        }
+    }
+}
